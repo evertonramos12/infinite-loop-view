@@ -21,11 +21,36 @@ const VideoForm: React.FC<VideoFormProps> = ({ onVideoAdded }) => {
   const { toast } = useToast();
 
   const validateUrl = (url: string) => {
-    // Basic validation for YouTube and other video URLs
-    const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/;
-    const genericUrlRegex = /^(https?:\/\/)?(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)/;
+    if (!url) return false;
     
-    return youtubeRegex.test(url) || genericUrlRegex.test(url);
+    try {
+      new URL(url); // This will throw an error for invalid URLs
+      return true;
+    } catch (e) {
+      // Try adding https:// and check again
+      try {
+        new URL(`https://${url}`);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+  };
+
+  // Function to normalize URL (add protocol if missing)
+  const normalizeUrl = (url: string) => {
+    try {
+      new URL(url);
+      return url; // URL is already valid
+    } catch (e) {
+      // Try adding https://
+      try {
+        new URL(`https://${url}`);
+        return `https://${url}`;
+      } catch (e) {
+        return url; // Return original if still invalid
+      }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -60,13 +85,14 @@ const VideoForm: React.FC<VideoFormProps> = ({ onVideoAdded }) => {
 
     setLoading(true);
     try {
+      const normalizedUrl = normalizeUrl(url);
+      
       // Add document to the 'videos' collection in Firestore
       await addDoc(collection(db, "videos"), {
         title,
-        url,
+        url: normalizedUrl,
         userId: user.uid,
         createdAt: new Date(),
-        // Add any additional fields you want to store
         active: true,
         category: "default"
       });
