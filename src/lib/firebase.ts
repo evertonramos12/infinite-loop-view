@@ -7,7 +7,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyDm4JMutIr3YhP8_eloPGju2yWYgz_XDcI",
   authDomain: "videos-16c3c.firebaseapp.com",
   projectId: "videos-16c3c",
-  storageBucket: "videos-16c3c.appspot.com", // Fixed storage bucket URL
+  storageBucket: "videos-16c3c.appspot.com",
   messagingSenderId: "1087744099662",
   appId: "1:1087744099662:web:36940fe1055c1e04190a1f",
   measurementId: "G-D36NDJVVPR"
@@ -15,6 +15,8 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
+
+// Get Firebase services
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 
