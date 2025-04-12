@@ -4,13 +4,13 @@ import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDm4JMutIr3YhP8_eloPGju2yWYgz_XDcI",
-  authDomain: "videos-16c3c.firebaseapp.com",
-  projectId: "videos-16c3c",
-  storageBucket: "videos-16c3c.appspot.com",
-  messagingSenderId: "1087744099662",
-  appId: "1:1087744099662:web:36940fe1055c1e04190a1f",
-  measurementId: "G-D36NDJVVPR"
+  apiKey: "AIzaSyBTR-3XjPLDyp5fW761YF04WSoWoPwyvD0",
+  authDomain: "video2-93f63.firebaseapp.com",
+  projectId: "video2-93f63",
+  storageBucket: "video2-93f63.firebasestorage.app",
+  messagingSenderId: "269164360804",
+  appId: "1:269164360804:web:3c65e98064150f9fcc1b71",
+  measurementId: "G-VSDKLZWLWW"
 };
 
 // Initialize Firebase
