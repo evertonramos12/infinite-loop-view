@@ -6,17 +6,21 @@ import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import VideoPlayer from '@/components/VideoPlayer';
 import VideoForm from '@/components/VideoForm';
-import { ProtectedRoute } from '@/hooks/useAuth';
+import { ProtectedRoute, useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/components/ui/use-toast';
-import { Trash2, LogOut, Play } from 'lucide-react';
+import { Trash2, LogOut, Play, Link } from 'lucide-react';
 
 interface Video {
   id: string;
   url: string;
   title: string;
   userId: string;
+  createdAt: Date;
+  active?: boolean;
+  category?: string;
 }
 
 const Dashboard = () => {
@@ -24,6 +28,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const fetchVideos = async () => {
     if (!auth.currentUser) return;
@@ -45,7 +50,10 @@ const Dashboard = () => {
           id: doc.id,
           title: data.title,
           url: data.url,
-          userId: data.userId
+          userId: data.userId,
+          createdAt: data.createdAt?.toDate() || new Date(),
+          active: data.active === undefined ? true : data.active,
+          category: data.category || 'default'
         });
       });
       
@@ -63,8 +71,10 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
-    fetchVideos();
-  }, []);
+    if (user) {
+      fetchVideos();
+    }
+  }, [user]);
 
   const handleDeleteVideo = async (id: string) => {
     try {
@@ -100,6 +110,16 @@ const Dashboard = () => {
 
   const handlePlayMode = () => {
     navigate('/play');
+  };
+  
+  const formatDate = (date: Date) => {
+    return new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(date);
   };
 
   return (
@@ -139,34 +159,53 @@ const Dashboard = () => {
             </div>
             
             <div className="lg:col-span-2">
-              <h2 className="text-xl font-bold mb-4">Seus Vídeos</h2>
-              
-              {loading ? (
-                <p>Carregando seus vídeos...</p>
-              ) : videos.length > 0 ? (
-                <div className="space-y-4">
-                  {videos.map((video) => (
-                    <Card key={video.id} className="overflow-hidden">
-                      <CardHeader className="p-4 flex flex-row items-center justify-between space-y-0">
-                        <CardTitle className="text-lg font-medium">{video.title}</CardTitle>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => handleDeleteVideo(video.id)} 
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </CardHeader>
-                      <CardContent className="p-4 pt-0">
-                        <p className="text-sm text-gray-500 truncate mb-2">{video.url}</p>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              ) : (
-                <p>Você ainda não tem vídeos cadastrados. Adicione um novo vídeo para começar.</p>
-              )}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Seus Vídeos</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <p className="text-center py-4">Carregando seus vídeos...</p>
+                  ) : videos.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Título</TableHead>
+                          <TableHead>URL</TableHead>
+                          <TableHead>Data</TableHead>
+                          <TableHead className="w-[100px]">Ações</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {videos.map((video) => (
+                          <TableRow key={video.id}>
+                            <TableCell className="font-medium">{video.title}</TableCell>
+                            <TableCell className="truncate max-w-[200px]">
+                              <div className="flex items-center">
+                                <Link className="mr-2 h-4 w-4 flex-shrink-0" />
+                                <span className="truncate">{video.url}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>{formatDate(video.createdAt)}</TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteVideo(video.id)}
+                                className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <p className="text-center py-8">Você ainda não tem vídeos cadastrados. Adicione um novo vídeo para começar.</p>
+                  )}
+                </CardContent>
+              </Card>
             </div>
           </div>
         </main>

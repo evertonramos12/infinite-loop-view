@@ -9,7 +9,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 
-const VideoForm = ({ onVideoAdded }: { onVideoAdded: () => void }) => {
+interface VideoFormProps {
+  onVideoAdded: () => void;
+}
+
+const VideoForm: React.FC<VideoFormProps> = ({ onVideoAdded }) => {
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
@@ -45,13 +49,26 @@ const VideoForm = ({ onVideoAdded }: { onVideoAdded: () => void }) => {
       return;
     }
 
+    if (!user) {
+      toast({
+        title: "Erro de autenticação",
+        description: "Você precisa estar logado para adicionar vídeos",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
+      // Add document to the 'videos' collection in Firestore
       await addDoc(collection(db, "videos"), {
         title,
         url,
-        userId: user?.uid,
-        createdAt: new Date()
+        userId: user.uid,
+        createdAt: new Date(),
+        // Add any additional fields you want to store
+        active: true,
+        category: "default"
       });
       
       toast({
