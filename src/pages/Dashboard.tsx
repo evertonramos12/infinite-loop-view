@@ -1,190 +1,216 @@
 
 import React, { useState, useEffect } from 'react';
-import { db } from '../firebase';
-import { collection, query, where, orderBy, getDocs, doc, deleteDoc } from 'firebase/firestore';
-import { auth } from '../firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { db, auth } from '@/lib/firebase';
+import { collection, query, where, orderBy, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { signOut } from 'firebase/auth';
+import { useNavigate } from 'react-router-dom';
+import VideoPlayer from '@/components/VideoPlayer';
+import VideoForm from '@/components/VideoForm';
+import { ProtectedRoute, useAuth } from '@/hooks/useAuth';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/components/ui/use-toast';
-import { Toaster } from '@/components/ui/toaster';
-
-import VideoList from '@/components/dashboard/VideoList';
-import VideoPlayer from '@/components/dashboard/VideoPlayer';
-import VideoControls from '@/components/dashboard/VideoControls';
-import { useOfflineStorage } from '@/hooks/useOfflineStorage';
+import { Trash2, LogOut, Play, Link } from 'lucide-react';
 
 interface Video {
   id: string;
-  title: string;
   url: string;
-  date: {
-    seconds: number;
-    nanoseconds: number;
-  };
-  userId?: string;
+  title: string;
+  userId: string;
+  createdAt: Date;
+  active?: boolean;
+  category?: string;
 }
 
 const Dashboard = () => {
   const [videos, setVideos] = useState<Video[]>([]);
-  const [currentVideo, setCurrentVideo] = useState<Video | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const [autoPlayNextVideo, setAutoPlayNextVideo] = useState(false);
-  const [offlineStorageEnabled, setOfflineStorageEnabled] = useState(false);
-  
+  const navigate = useNavigate();
   const { toast } = useToast();
-  const { cacheVideo, isVideoCached } = useOfflineStorage(offlineStorageEnabled);
+  const { user } = useAuth();
 
-  // Check authentication status
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setCurrentUser(user);
-      } else {
-        window.location.href = '/';
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  // Fetch videos from firestore
-  useEffect(() => {
-    const fetchVideos = async () => {
-      if (!currentUser) return;
-
-      try {
-        const videosCollection = collection(db, 'videos');
-        const q = query(
-          videosCollection,
-          where('userId', '==', currentUser.uid),
-          orderBy('date', 'desc')
-        );
-        
-        const querySnapshot = await getDocs(q);
-        const videosList = querySnapshot.docs.map((doc) => ({
+  const fetchVideos = async () => {
+    if (!auth.currentUser) return;
+    
+    try {
+      setLoading(true);
+      const videoQuery = query(
+        collection(db, "videos"),
+        where("userId", "==", auth.currentUser.uid),
+        orderBy("createdAt", "desc")
+      );
+      
+      const querySnapshot = await getDocs(videoQuery);
+      const videoList: Video[] = [];
+      
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        videoList.push({
           id: doc.id,
-          ...doc.data()
-        } as Video));
-        
-        setVideos(videosList);
-      } catch (error) {
-        console.error('Error fetching videos:', error);
-        toast({
-          title: 'Erro',
-          description: 'Falha ao carregar seus vídeos',
-          variant: 'destructive'
+          title: data.title,
+          url: data.url,
+          userId: data.userId,
+          createdAt: data.createdAt?.toDate() || new Date(),
+          active: data.active === undefined ? true : data.active,
+          category: data.category || 'default'
         });
-      } finally {
-        setLoading(false);
-      }
-    };
+      });
+      
+      setVideos(videoList);
+    } catch (error) {
+      console.error("Error fetching videos: ", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar seus vídeos",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    if (currentUser) {
+  useEffect(() => {
+    if (user) {
       fetchVideos();
     }
-  }, [currentUser, toast]);
+  }, [user]);
 
-  // Handle offline storage when toggled
-  useEffect(() => {
-    const cacheVideos = async () => {
-      if (offlineStorageEnabled && videos.length > 0) {
-        for (const video of videos) {
-          if (!isVideoCached(video.id)) {
-            await cacheVideo(video);
-          }
-        }
-        toast({
-          title: 'Armazenamento Offline',
-          description: 'Seus vídeos foram salvos para visualização offline'
-        });
-      }
-    };
-
-    if (offlineStorageEnabled) {
-      cacheVideos();
-    }
-  }, [offlineStorageEnabled, videos, cacheVideo, isVideoCached, toast]);
-
-  // Handle playing a video
-  const handlePlayVideo = (video: Video) => {
-    setCurrentVideo(video);
-  };
-
-  // Handle deleting a video
   const handleDeleteVideo = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'videos', id));
-      setVideos(videos.filter(video => video.id !== id));
-      
-      if (currentVideo && currentVideo.id === id) {
-        setCurrentVideo(null);
-      }
-      
+      await deleteDoc(doc(db, "videos", id));
       toast({
-        title: 'Vídeo excluído',
-        description: 'O vídeo foi excluído com sucesso'
+        title: "Vídeo removido",
+        description: "O vídeo foi removido com sucesso",
       });
+      fetchVideos();
     } catch (error) {
-      console.error('Error deleting video:', error);
+      console.error("Error deleting video: ", error);
       toast({
-        title: 'Erro',
-        description: 'Falha ao excluir o vídeo',
-        variant: 'destructive'
+        title: "Erro",
+        description: "Não foi possível remover o vídeo",
+        variant: "destructive",
       });
     }
   };
 
-  // Handle video end - play the next video if autoplay is enabled
-  const handleVideoEnd = () => {
-    if (!autoPlayNextVideo || !currentVideo || videos.length <= 1) return;
-    
-    const currentIndex = videos.findIndex(video => video.id === currentVideo.id);
-    const nextIndex = (currentIndex + 1) % videos.length;
-    setCurrentVideo(videos[nextIndex]);
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      navigate('/login');
+    } catch (error) {
+      console.error("Logout error: ", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível sair da conta",
+        variant: "destructive",
+      });
+    }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <p>Carregando...</p>
-      </div>
-    );
-  }
+  const handlePlayMode = () => {
+    navigate('/play');
+  };
+  
+  const formatDate = (date: Date) => {
+    return new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(date);
+  };
 
   return (
-    <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <VideoPlayer
-            currentVideo={currentVideo}
-            videos={videos}
-            autoPlayNextVideo={autoPlayNextVideo}
-            onVideoEnd={handleVideoEnd}
-          />
-          
-          <div className="mt-4">
-            <VideoControls
-              autoPlayNextVideo={autoPlayNextVideo}
-              onAutoPlayToggle={setAutoPlayNextVideo}
-              offlineStorageEnabled={offlineStorageEnabled}
-              onOfflineStorageToggle={setOfflineStorageEnabled}
-            />
+    <ProtectedRoute>
+      <div className="min-h-screen bg-gray-100">
+        <header className="bg-gray-900 p-4 shadow-md">
+          <div className="container mx-auto flex justify-between items-center">
+            <h1 className="text-xl font-bold text-white">Infinite Loop Videos</h1>
+            <div className="flex gap-2">
+              {videos.length > 0 && (
+                <Button 
+                  onClick={handlePlayMode}
+                  className="bg-red-600 hover:bg-red-700"
+                  size="sm"
+                >
+                  <Play className="mr-2 h-4 w-4" />
+                  Modo de Exibição
+                </Button>
+              )}
+              <Button 
+                onClick={handleLogout} 
+                variant="outline"
+                size="sm"
+                className="text-white border-white hover:bg-white/10"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Sair
+              </Button>
+            </div>
           </div>
-        </div>
-        
-        <div className="lg:col-span-1">
-          <VideoList
-            videos={videos}
-            onDelete={handleDeleteVideo}
-            onPlay={handlePlayVideo}
-          />
-        </div>
+        </header>
+
+        <main className="container mx-auto p-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-1">
+              <VideoForm onVideoAdded={fetchVideos} />
+            </div>
+            
+            <div className="lg:col-span-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Seus Vídeos</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {loading ? (
+                    <p className="text-center py-4">Carregando seus vídeos...</p>
+                  ) : videos.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Título</TableHead>
+                          <TableHead>URL</TableHead>
+                          <TableHead>Data</TableHead>
+                          <TableHead className="w-[100px]">Ações</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {videos.map((video) => (
+                          <TableRow key={video.id}>
+                            <TableCell className="font-medium">{video.title}</TableCell>
+                            <TableCell className="truncate max-w-[200px]">
+                              <div className="flex items-center">
+                                <Link className="mr-2 h-4 w-4 flex-shrink-0" />
+                                <span className="truncate">{video.url}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>{formatDate(video.createdAt)}</TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteVideo(video.id)}
+                                className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <p className="text-center py-8">Você ainda não tem vídeos cadastrados. Adicione um novo vídeo para começar.</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </main>
       </div>
-      
-      <Toaster />
-    </div>
+    </ProtectedRoute>
   );
 };
 
