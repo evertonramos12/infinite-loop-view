@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { db, auth } from '@/lib/firebase';
-import { collection, query, where, orderBy, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import VideoPlayer from '@/components/VideoPlayer';
@@ -11,7 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/components/ui/use-toast';
-import { Trash2, LogOut, Play, Link } from 'lucide-react';
+import { Trash2, LogOut, Play, Link, AlertTriangle } from 'lucide-react';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 interface Video {
   id: string;
@@ -26,6 +27,7 @@ interface Video {
 const Dashboard = () => {
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -35,10 +37,12 @@ const Dashboard = () => {
     
     try {
       setLoading(true);
+      setError(null);
+      
+      // Simplify the query to avoid index requirements
       const videoQuery = query(
         collection(db, "videos"),
-        where("userId", "==", auth.currentUser.uid),
-        orderBy("createdAt", "desc")
+        where("userId", "==", auth.currentUser.uid)
       );
       
       const querySnapshot = await getDocs(videoQuery);
@@ -57,9 +61,13 @@ const Dashboard = () => {
         });
       });
       
+      // Sort videos client-side
+      videoList.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      
       setVideos(videoList);
     } catch (error) {
       console.error("Error fetching videos: ", error);
+      setError("Não foi possível carregar seus vídeos. Tente novamente mais tarde.");
       toast({
         title: "Erro",
         description: "Não foi possível carregar seus vídeos",
@@ -164,6 +172,14 @@ const Dashboard = () => {
                   <CardTitle>Seus Vídeos</CardTitle>
                 </CardHeader>
                 <CardContent>
+                  {error && (
+                    <Alert variant="destructive" className="mb-4">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertTitle>Erro</AlertTitle>
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
+                  
                   {loading ? (
                     <p className="text-center py-4">Carregando seus vídeos...</p>
                   ) : videos.length > 0 ? (
