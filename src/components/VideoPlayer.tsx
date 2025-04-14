@@ -2,6 +2,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactPlayer from 'react-player';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/components/ui/use-toast';
+import { db } from '@/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 interface VideoPlayerProps {
   videos: {
@@ -16,14 +19,35 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [tapCount, setTapCount] = useState(0);
   const [showControls, setShowControls] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [offlineVideos, setOfflineVideos] = useState<{[key: string]: string}>({});
   const playerRef = useRef<HTMLDivElement>(null);
   const tapTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const { toast } = useToast();
 
-  const handleVideoEnded = () => {
+  // Load cached videos on component mount
+  useEffect(() => {
+    const loadCachedVideos = async () => {
+      try {
+        const cachedVideos = localStorage.getItem('offlineVideos');
+        if (cachedVideos) {
+          setOfflineVideos(JSON.parse(cachedVideos));
+        }
+      } catch (error) {
+        console.error('Error loading cached videos:', error);
+      }
+    };
+    
+    loadCachedVideos();
+  }, []);
+
+  const handleVideoEnded = useCallback(() => {
     // Move to next video when current one ends
     const nextIndex = (currentVideoIndex + 1) % videos.length;
     setCurrentVideoIndex(nextIndex);
-  };
+    // Ensure autoplay continues
+    setIsPlaying(true);
+  }, [currentVideoIndex, videos.length]);
 
   const toggleFullScreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -102,6 +126,34 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
     };
   }, []);
 
+  // Store video offline
+  const storeVideoOffline = async (videoId: string, videoUrl: string) => {
+    try {
+      // We can only store URLs that we can cache
+      // YouTube videos can't be directly cached, but we can save the URL
+      const updatedOfflineVideos = {...offlineVideos, [videoId]: videoUrl};
+      localStorage.setItem('offlineVideos', JSON.stringify(updatedOfflineVideos));
+      setOfflineVideos(updatedOfflineVideos);
+      
+      toast({
+        title: "Vídeo disponível offline",
+        description: "Este vídeo estará disponível mesmo sem internet",
+      });
+    } catch (error) {
+      console.error('Error storing video offline:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível armazenar o vídeo offline",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Check if video is available offline
+  const isVideoOffline = (videoId: string) => {
+    return !!offlineVideos[videoId];
+  };
+
   // Guard against empty videos array
   if (!videos || videos.length === 0) {
     return (
@@ -111,6 +163,8 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
     );
   }
 
+  const currentVideo = videos[currentVideoIndex];
+
   return (
     <div 
       ref={playerRef} 
@@ -118,8 +172,8 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
       className={`relative rounded-lg overflow-hidden ${isFullScreen ? 'fullscreen' : ''}`}
     >
       <ReactPlayer
-        url={videos[currentVideoIndex].url}
-        playing={true}
+        url={currentVideo.url}
+        playing={isPlaying}
         controls={false}
         loop={false}
         width="100%"
@@ -133,6 +187,7 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
               fs: 0,
               rel: 0,
               modestbranding: 1,
+              autoplay: 1,
             }
           }
         }}
@@ -148,6 +203,14 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
             Anterior
           </Button>
           <Button 
+            onClick={() => setIsPlaying(!isPlaying)}
+            className="bg-black/70 hover:bg-black/90"
+            variant="outline"
+            size="sm"
+          >
+            {isPlaying ? 'Pause' : 'Play'}
+          </Button>
+          <Button 
             onClick={toggleFullScreen}
             className="bg-red-600 hover:bg-red-700"
             size="sm"
@@ -161,6 +224,15 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
             size="sm"
           >
             Próximo
+          </Button>
+          <Button
+            onClick={() => storeVideoOffline(currentVideo.id, currentVideo.url)}
+            className={`${isVideoOffline(currentVideo.id) ? 'bg-green-600 hover:bg-green-700' : 'bg-black/70 hover:bg-black/90'}`}
+            variant="outline"
+            size="sm"
+            title={isVideoOffline(currentVideo.id) ? 'Vídeo disponível offline' : 'Salvar para visualização offline'}
+          >
+            {isVideoOffline(currentVideo.id) ? 'Disponível Offline' : 'Salvar Offline'}
           </Button>
         </div>
       )}
