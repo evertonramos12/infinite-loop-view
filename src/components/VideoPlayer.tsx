@@ -3,236 +3,218 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactPlayer from 'react-player';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
-import { db } from '@/lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
 
+// Novo tipo que engloba vídeos e imagens:
+type SequenceItem = {
+  id: string;
+  url: string;
+  title: string;
+  type: 'video' | 'image';
+};
+
+// VideoPlayerProps ajustado para aceitar ambos:
 interface VideoPlayerProps {
-  videos: {
-    id: string;
-    url: string;
-    title: string;
-  }[];
+  // Aceita array de vídeos ou imagens, deve vir assim da página.
+  sequence: SequenceItem[];
 }
 
-const VideoPlayer = ({ videos }: VideoPlayerProps) => {
-  const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
+const IMAGE_DISPLAY_SECONDS = 7;
+
+const VideoPlayer = ({ sequence }: VideoPlayerProps) => {
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [tapCount, setTapCount] = useState(0);
   const [showControls, setShowControls] = useState(true);
   const [isPlaying, setIsPlaying] = useState(true);
-  const [offlineVideos, setOfflineVideos] = useState<{[key: string]: string}>({});
+  const timerRef = useRef<number | null>(null);
+  const tapTimerRef = useRef<number | null>(null);
   const playerRef = useRef<HTMLDivElement>(null);
-  const tapTimerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
-  // Load cached videos on component mount
+  // A cada troca de item, se for image, aciona timer automático para próximo
   useEffect(() => {
-    const loadCachedVideos = async () => {
-      try {
-        const cachedVideos = localStorage.getItem('offlineVideos');
-        if (cachedVideos) {
-          setOfflineVideos(JSON.parse(cachedVideos));
-        }
-      } catch (error) {
-        console.error('Error loading cached videos:', error);
-      }
-    };
-    
-    loadCachedVideos();
-  }, []);
+    const currentItem = sequence[currentIndex];
+    if (!currentItem) return;
 
-  const handleVideoEnded = useCallback(() => {
-    // Move to next video when current one ends
-    const nextIndex = (currentVideoIndex + 1) % videos.length;
-    setCurrentVideoIndex(nextIndex);
-    // Ensure autoplay continues
-    setIsPlaying(true);
-  }, [currentVideoIndex, videos.length]);
-
-  const toggleFullScreen = useCallback(() => {
-    if (!document.fullscreenElement) {
-      if (playerRef.current?.requestFullscreen) {
-        playerRef.current.requestFullscreen().then(() => {
-          setIsFullScreen(true);
-          setShowControls(false);
-        }).catch(err => {
-          console.error(`Error attempting to enable full-screen mode: ${err.message}`);
-        });
-      }
+    // Se for imagem, agenda a troca
+    if (currentItem.type === 'image') {
+      timerRef.current && clearTimeout(timerRef.current);
+      timerRef.current = window.setTimeout(() => {
+        handleNext();
+      }, IMAGE_DISPLAY_SECONDS * 1000);
     } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen().then(() => {
-          setIsFullScreen(false);
-          setShowControls(true);
-          setTapCount(0);
-        }).catch(err => {
-          console.error(`Error attempting to exit full-screen mode: ${err.message}`);
-        });
-      }
+      // Se for vídeo, não mexe (vídeo termina chama handleNext)
+      timerRef.current && clearTimeout(timerRef.current);
+    }
+    // Limpeza
+    return () => {
+      timerRef.current && clearTimeout(timerRef.current);
+    };
+    // eslint-disable-next-line
+  }, [currentIndex]);
+
+  // Passar para próximo item
+  const handleNext = useCallback(() => {
+    setCurrentIndex((prev) => (prev + 1) % sequence.length);
+    setIsPlaying(true); // só para garantir autoplay
+  }, [sequence.length]);
+
+  // Passar para anterior
+  const handlePrev = useCallback(() => {
+    setCurrentIndex((prev) => (prev - 1 + sequence.length) % sequence.length);
+    setIsPlaying(true);
+  }, [sequence.length]);
+
+  // Tela cheia
+  const toggleFullScreen = useCallback(() => {
+    if (!document.fullscreenElement && playerRef.current && playerRef.current.requestFullscreen) {
+      playerRef.current.requestFullscreen();
+      setIsFullScreen(true);
+      setShowControls(false);
+    } else if (document.exitFullscreen) {
+      document.exitFullscreen();
+      setIsFullScreen(false);
+      setShowControls(true);
+      setTapCount(0);
     }
   }, []);
 
+  // Tap para sair tela cheia
   const handleTap = useCallback(() => {
     if (!isFullScreen) return;
+    setTapCount(n => n + 1);
 
-    // Increment tap count
-    const newCount = tapCount + 1;
-    setTapCount(newCount);
-    
-    // Reset the timer each time there's a tap
     if (tapTimerRef.current) {
       clearTimeout(tapTimerRef.current);
     }
-    
-    // Set a new timer to reset the tap count after 2 seconds of inactivity
-    tapTimerRef.current = setTimeout(() => {
+    tapTimerRef.current = window.setTimeout(() => setTapCount(0), 2000);
+    if (tapCount + 1 >= 6 && document.exitFullscreen) {
+      document.exitFullscreen();
+      setIsFullScreen(false);
+      setShowControls(true);
       setTapCount(0);
-    }, 2000);
-
-    // Check if we've reached 6 taps
-    if (newCount >= 6) {
-      document.exitFullscreen().then(() => {
-        setIsFullScreen(false);
-        setShowControls(true);
-        setTapCount(0);
-      }).catch(err => {
-        console.error(`Error attempting to exit full-screen mode: ${err.message}`);
-      });
     }
-  }, [tapCount, isFullScreen]);
+  }, [isFullScreen, tapCount]);
 
-  // Handle fullscreen change event from browser
+  // Limpeza dos timers
   useEffect(() => {
-    const handleFullScreenChange = () => {
+    return () => {
+      timerRef.current && clearTimeout(timerRef.current);
+      tapTimerRef.current && clearTimeout(tapTimerRef.current);
+    };
+  }, []);
+
+  // Escuta mudança de fullscreen
+  useEffect(() => {
+    const onFull = () => {
       if (!document.fullscreenElement) {
         setIsFullScreen(false);
         setShowControls(true);
         setTapCount(0);
       }
     };
-
-    document.addEventListener('fullscreenchange', handleFullScreenChange);
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullScreenChange);
-    };
+    document.addEventListener('fullscreenchange', onFull);
+    return () => document.removeEventListener('fullscreenchange', onFull);
   }, []);
 
-  // Clean up timer when component unmounts
-  useEffect(() => {
-    return () => {
-      if (tapTimerRef.current) {
-        clearTimeout(tapTimerRef.current);
-      }
-    };
-  }, []);
-
-  // Store video offline
-  const storeVideoOffline = async (videoId: string, videoUrl: string) => {
-    try {
-      // We can only store URLs that we can cache
-      // YouTube videos can't be directly cached, but we can save the URL
-      const updatedOfflineVideos = {...offlineVideos, [videoId]: videoUrl};
-      localStorage.setItem('offlineVideos', JSON.stringify(updatedOfflineVideos));
-      setOfflineVideos(updatedOfflineVideos);
-      
-      toast({
-        title: "Vídeo disponível offline",
-        description: "Este vídeo estará disponível mesmo sem internet",
-      });
-    } catch (error) {
-      console.error('Error storing video offline:', error);
-      toast({
-        title: "Erro",
-        description: "Não foi possível armazenar o vídeo offline",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Check if video is available offline
-  const isVideoOffline = (videoId: string) => {
-    return !!offlineVideos[videoId];
-  };
-
-  // Guard against empty videos array
-  if (!videos || videos.length === 0) {
+  // Guard contra array vazio
+  if (!sequence || sequence.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-64 bg-black rounded-lg">
-        <p className="text-white">Sem vídeos para exibir. Adicione alguns vídeos para começar.</p>
+        <p className="text-white">Sem vídeos ou imagens para exibir.</p>
       </div>
     );
   }
 
-  const currentVideo = videos[currentVideoIndex];
+  const currentItem = sequence[currentIndex];
 
   return (
-    <div 
-      ref={playerRef} 
+    <div
+      ref={playerRef}
       onClick={handleTap}
-      className={`relative rounded-lg overflow-hidden ${isFullScreen ? 'fullscreen' : ''}`}
+      className={`relative rounded-lg overflow-hidden bg-black ${isFullScreen ? 'fullscreen' : ''}`}
+      style={isFullScreen ? { width: '100vw', height: '100vh' } : undefined}
     >
-      <ReactPlayer
-        url={currentVideo.url}
-        playing={isPlaying}
-        controls={false}
-        loop={false}
-        width="100%"
-        height={isFullScreen ? "100vh" : "450px"}
-        onEnded={handleVideoEnded}
-        style={{ backgroundColor: 'black' }}
-        config={{
-          youtube: {
-            playerVars: { 
-              disablekb: 1,
-              fs: 0,
-              rel: 0,
-              modestbranding: 1,
-              autoplay: 1,
+      {currentItem.type === 'video' ? (
+        <ReactPlayer
+          url={currentItem.url}
+          playing={isPlaying}
+          controls={false}
+          loop={false}
+          width="100%"
+          height={isFullScreen ? "100vh" : "450px"}
+          onEnded={handleNext}
+          style={{ backgroundColor: 'black' }}
+          config={{
+            youtube: {
+              playerVars: {
+                disablekb: 1,
+                fs: 0,
+                rel: 0,
+                modestbranding: 1,
+                autoplay: 1,
+              }
             }
-          }
-        }}
-      />
+          }}
+        />
+      ) : (
+        <div
+          style={{
+            width: '100%',
+            height: isFullScreen ? '100vh' : '450px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: '#111'
+          }}
+        >
+          {/* Imagem básica, sem lazy-load para máxima compatibilidade */}
+          <img
+            src={currentItem.url}
+            alt={currentItem.title}
+            style={{
+              maxHeight: isFullScreen ? '80vh' : '400px',
+              maxWidth: '100%',
+              objectFit: 'contain',
+              borderRadius: '8px'
+            }}
+          />
+        </div>
+      )}
       {showControls && (
         <div className="absolute bottom-4 right-4 flex gap-2">
-          <Button 
-            onClick={() => setCurrentVideoIndex((currentVideoIndex - 1 + videos.length) % videos.length)}
+          <Button
+            onClick={handlePrev}
             className="bg-black/70 hover:bg-black/90"
             variant="outline"
             size="sm"
           >
             Anterior
           </Button>
-          <Button 
-            onClick={() => setIsPlaying(!isPlaying)}
-            className="bg-black/70 hover:bg-black/90"
-            variant="outline"
-            size="sm"
-          >
-            {isPlaying ? 'Pause' : 'Play'}
-          </Button>
-          <Button 
+          {currentItem.type === 'video' && (
+            <Button
+              onClick={() => setIsPlaying(!isPlaying)}
+              className="bg-black/70 hover:bg-black/90"
+              variant="outline"
+              size="sm"
+            >
+              {isPlaying ? 'Pause' : 'Play'}
+            </Button>
+          )}
+          <Button
             onClick={toggleFullScreen}
             className="bg-red-600 hover:bg-red-700"
             size="sm"
           >
             Tela cheia
           </Button>
-          <Button 
-            onClick={() => setCurrentVideoIndex((currentVideoIndex + 1) % videos.length)}
+          <Button
+            onClick={handleNext}
             className="bg-black/70 hover:bg-black/90"
             variant="outline"
             size="sm"
           >
             Próximo
-          </Button>
-          <Button
-            onClick={() => storeVideoOffline(currentVideo.id, currentVideo.url)}
-            className={`${isVideoOffline(currentVideo.id) ? 'bg-green-600 hover:bg-green-700' : 'bg-black/70 hover:bg-black/90'}`}
-            variant="outline"
-            size="sm"
-            title={isVideoOffline(currentVideo.id) ? 'Vídeo disponível offline' : 'Salvar para visualização offline'}
-          >
-            {isVideoOffline(currentVideo.id) ? 'Disponível Offline' : 'Salvar Offline'}
           </Button>
         </div>
       )}
@@ -241,8 +223,12 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
           Toque 6x para sair ({tapCount}/6)
         </div>
       )}
+      <div className="absolute bottom-4 left-4 text-white font-bold drop-shadow-md text-lg bg-black/40 px-2 py-1 rounded">
+        {currentItem.title}
+      </div>
     </div>
   );
 };
 
 export default VideoPlayer;
+
