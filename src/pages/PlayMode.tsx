@@ -10,29 +10,13 @@ import { ArrowLeft, WifiOff } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
-// Novo tipo:
+// Tipo:
 type SequenceItem = {
   id: string;
   url: string;
   title: string;
   type: 'video' | 'image';
 };
-
-// Defina aqui as imagens estáticas a usar, no seu formato mais simples:
-const STATIC_IMAGES: SequenceItem[] = [
-  {
-    id: 'img1',
-    url: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=max&w=1000&q=80',
-    title: 'Imagem Circuito',
-    type: 'image'
-  },
-  {
-    id: 'img2',
-    url: 'https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?auto=format&fit=max&w=1000&q=80',
-    title: 'Notebook',
-    type: 'image'
-  }
-];
 
 const PlayMode = () => {
   const [sequence, setSequence] = useState<SequenceItem[]>([]);
@@ -79,7 +63,7 @@ const PlayMode = () => {
           }
         }
         if (localVideos.length > 0) {
-          setSequence([...STATIC_IMAGES, ...localVideos]);
+          setSequence(localVideos);
           setLoading(false);
           return;
         } else {
@@ -93,7 +77,7 @@ const PlayMode = () => {
         }
       }
 
-      // Online: busca vídeos do firestore e mescla as imagens
+      // Online: busca vídeos do firestore sem imagens fixas
       try {
         const videoQuery = query(
           collection(db, "videos"),
@@ -120,15 +104,15 @@ const PlayMode = () => {
           return;
         }
 
-        // Junta imagens + vídeos
-        setSequence([...STATIC_IMAGES, ...videoList]);
+        // Apenas vídeos - sem imagens estáticas fixas
+        setSequence(videoList);
       } catch (error) {
         toast({
           title: "Erro",
           description: "Não foi possível carregar seus vídeos",
           variant: "destructive",
         });
-        setSequence([...STATIC_IMAGES]);
+        setSequence([]);
       } finally {
         setLoading(false);
       }
