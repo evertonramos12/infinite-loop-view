@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, addDoc } from 'firebase/firestore';
@@ -23,38 +22,30 @@ const VideoForm: React.FC<VideoFormProps> = ({ onVideoAdded }) => {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // Improved image url validation (now accepts postimg.cc URLs)
   const validateImageUrl = (value: string) => {
     if (!value) return false;
-    
     try {
-      // Check direct image file extensions
       const url = new URL(value);
-      if (/\.(jpe?g|png|gif|webp)$/i.test(url.pathname)) {
+      if (
+        /\.(jpe?g|png|gif|webp)$/i.test(url.pathname) ||
+        url.hostname.includes('postimg.cc') ||
+        url.hostname.includes('i.postimg.cc') ||
+        url.hostname.includes('canva.com')
+      ) {
         return true;
       }
-      
-      // Add specific handling for postimg.cc
-      if (url.hostname.includes('postimg.cc') || 
-          url.hostname.includes('i.postimg.cc')) {
-        return true;
-      }
-      
       return false;
     } catch {
-      // Try with https://
       try {
         const url = new URL('https://' + value);
-        if (/\.(jpe?g|png|gif|webp)$/i.test(url.pathname)) {
+        if (
+          /\.(jpe?g|png|gif|webp)$/i.test(url.pathname) ||
+          url.hostname.includes('postimg.cc') ||
+          url.hostname.includes('i.postimg.cc') ||
+          url.hostname.includes('canva.com')
+        ) {
           return true;
         }
-        
-        // Add specific handling for postimg.cc
-        if (url.hostname.includes('postimg.cc') || 
-            url.hostname.includes('i.postimg.cc')) {
-          return true;
-        }
-        
         return false;
       } catch {
         return false;
@@ -65,11 +56,13 @@ const VideoForm: React.FC<VideoFormProps> = ({ onVideoAdded }) => {
   const validateVideoUrl = (value: string) => {
     if (!value) return false;
     try {
-      new URL(value);
+      const url = new URL(value);
+      if (url.hostname.includes('canva.com')) return true;
       return true;
     } catch {
       try {
-        new URL('https://' + value);
+        const url = new URL('https://' + value);
+        if (url.hostname.includes('canva.com')) return true;
         return true;
       } catch {
         return false;
@@ -78,7 +71,6 @@ const VideoForm: React.FC<VideoFormProps> = ({ onVideoAdded }) => {
   };
 
   const normalizeUrl = (value: string) => {
-    // Tenta normalizar a URL para ter https://
     try {
       new URL(value);
       return value;
@@ -210,13 +202,17 @@ const VideoForm: React.FC<VideoFormProps> = ({ onVideoAdded }) => {
               id="url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder={mediaType === 'video' ? "Link do YouTube ou outra fonte de vídeo" : "Link direto da imagem (.jpg, .png, etc)"}
+              placeholder={
+                mediaType === 'video'
+                  ? "Link do YouTube, Canva ou outro vídeo"
+                  : "Link do Canva, postimg.cc ou direto da imagem (.jpg, .png, etc)"
+              }
               required
             />
             <p className="text-xs text-muted-foreground">
               {mediaType === 'video'
-                ? "Aceita links do YouTube e outros domínios de vídeo"
-                : "Aceito imagens do postimg.cc e links diretos de imagens (.jpg, .png, etc)"}
+                ? "Aceita links do YouTube, Canva e outros domínios de vídeo"
+                : "Aceito imagens do Canva, postimg.cc e links diretos de imagens (.jpg, .png, etc)"}
             </p>
           </div>
         </CardContent>
