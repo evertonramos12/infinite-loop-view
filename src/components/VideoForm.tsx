@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { validateImageUrl, validateVideoUrl, normalizeUrl, MediaType } from '@/utils/mediaValidation';
+import MediaTypeSelector from './MediaTypeSelector';
+import MediaUrlInput from './MediaUrlInput';
 
 interface VideoFormProps {
   onVideoAdded: () => void;
@@ -102,28 +104,7 @@ const VideoForm: React.FC<VideoFormProps> = ({ onVideoAdded }) => {
       </CardHeader>
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
-          <div className="flex gap-4">
-            <label className="flex items-center space-x-1">
-              <input
-                type="radio"
-                value="video"
-                checked={mediaType === 'video'}
-                onChange={() => setMediaType('video')}
-                className="mr-1"
-              />
-              <span>Vídeo</span>
-            </label>
-            <label className="flex items-center space-x-1">
-              <input
-                type="radio"
-                value="image"
-                checked={mediaType === 'image'}
-                onChange={() => setMediaType('image')}
-                className="mr-1"
-              />
-              <span>Imagem</span>
-            </label>
-          </div>
+          <MediaTypeSelector mediaType={mediaType} setMediaType={setMediaType} />
           <div className="space-y-2">
             <Label htmlFor="title">Título</Label>
             <Input
@@ -134,25 +115,7 @@ const VideoForm: React.FC<VideoFormProps> = ({ onVideoAdded }) => {
               required
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="url">{mediaType === 'video' ? 'URL do Vídeo' : 'URL da Imagem'}</Label>
-            <Input
-              id="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder={
-                mediaType === 'video'
-                  ? "Link do YouTube, Canva ou outro vídeo"
-                  : "Link do Canva, postimg.cc ou direto da imagem (.jpg, .png, etc)"
-              }
-              required
-            />
-            <p className="text-xs text-muted-foreground">
-              {mediaType === 'video'
-                ? "Aceita links do YouTube, Canva e outros domínios de vídeo"
-                : "Aceito imagens do Canva, postimg.cc e links diretos de imagens (.jpg, .png, etc)"}
-            </p>
-          </div>
+          <MediaUrlInput mediaType={mediaType} url={url} setUrl={setUrl} />
         </CardContent>
         <CardFooter>
           <Button
