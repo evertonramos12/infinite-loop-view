@@ -16,34 +16,89 @@ export function normalizeUrl(value: string) {
   }
 }
 
-// Valida URL de imagem: permite postimg, canva, terminações clássicas (.jpg, .png, etc)
+// Valida URL de imagem: permite links simples, postimg, canva, terminações clássicas (.jpg, .png, etc)
 export function validateImageUrl(value: string): boolean {
   if (!value) return false;
+  
+  // Aceita qualquer URL que termine com extensão de imagem comum
+  const imageExtensions = /\.(jpe?g|png|gif|webp|svg|bmp|tiff?)$/i;
+  
   try {
+    // Tenta criar um objeto URL para verificar se é uma URL válida
     const url = new URL(value);
+    
+    // Aceita URLs que terminam com extensões de imagem
+    if (imageExtensions.test(url.pathname)) {
+      return true;
+    }
+    
+    // Aceita domínios específicos populares para imagens
     if (
-      /\.(jpe?g|png|gif|webp)$/i.test(url.pathname) ||
-      // Aceita especificamente domínios comuns para imagens
       url.hostname.includes('postimg.cc') ||
       url.hostname.includes('i.postimg.cc') ||
-      url.hostname.includes('canva.com')
+      url.hostname.includes('canva.com') ||
+      url.hostname.includes('imgur.com') ||
+      url.hostname.includes('ibb.co') ||
+      url.hostname.includes('cloudinary.com')
     ) {
       return true;
     }
+    
+    // Para outros domínios, aceita se parecer uma URL de imagem
+    // (muitos sites usam URLs sem extensão de arquivo para imagens)
+    if (
+      url.pathname.includes('/image') || 
+      url.pathname.includes('/img') || 
+      url.pathname.includes('/photo') ||
+      url.search.includes('image')
+    ) {
+      return true;
+    }
+    
+    // Para URLs que não se enquadram nas regras acima, vamos aceitar como imagem se for http/https
+    // O usuário terá feedback visual se não for uma imagem válida quando tentar visualizá-la
+    if (url.protocol === 'http:' || url.protocol === 'https:') {
+      return true;
+    }
+    
     return false;
   } catch {
     try {
+      // Tenta prefixar com https:// se falhou anteriormente
       const url = new URL('https://' + value);
+      
+      if (imageExtensions.test(url.pathname)) {
+        return true;
+      }
+      
       if (
-        /\.(jpe?g|png|gif|webp)$/i.test(url.pathname) ||
         url.hostname.includes('postimg.cc') ||
         url.hostname.includes('i.postimg.cc') ||
-        url.hostname.includes('canva.com')
+        url.hostname.includes('canva.com') ||
+        url.hostname.includes('imgur.com') ||
+        url.hostname.includes('ibb.co') ||
+        url.hostname.includes('cloudinary.com')
       ) {
         return true;
       }
-      return false;
+      
+      if (
+        url.pathname.includes('/image') || 
+        url.pathname.includes('/img') || 
+        url.pathname.includes('/photo') ||
+        url.search.includes('image')
+      ) {
+        return true;
+      }
+      
+      // Mesma regra - aceitamos qualquer URL HTTP/HTTPS como potencial imagem
+      return true;
     } catch {
+      // Se não conseguir analisar como URL, verificamos se parece uma extensão de arquivo de imagem
+      if (imageExtensions.test(value)) {
+        return true;
+      }
+      
       return false;
     }
   }

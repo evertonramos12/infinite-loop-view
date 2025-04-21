@@ -20,14 +20,14 @@ const MediaUrlInput: React.FC<MediaUrlInputProps> = ({ mediaType, url, setUrl })
       placeholder={
         mediaType === 'video'
           ? "Link do YouTube, Canva ou outro vídeo"
-          : "Link do Canva, postimg.cc ou direto da imagem (.jpg, .png, etc)"
+          : "Link direto de qualquer imagem (site.com.br/imagem.jpg)"
       }
       required
     />
     <p className="text-xs text-muted-foreground">
       {mediaType === 'video'
         ? "Aceita links do YouTube, Canva e outros domínios de vídeo"
-        : "Aceito imagens do Canva, postimg.cc e links diretos de imagens (.jpg, .png, etc)"}
+        : "Aceita qualquer URL direta de imagem (.jpg, .png, etc), sites como Canva, postimg.cc e outros"}
     </p>
   </div>
 );
