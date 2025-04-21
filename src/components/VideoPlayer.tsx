@@ -26,10 +26,16 @@ const VideoPlayer = ({ sequence }: VideoPlayerProps) => {
   const [tapCount, setTapCount] = useState(0);
   const [showControls, setShowControls] = useState(true);
   const [isPlaying, setIsPlaying] = useState(true);
+  const [imgError, setImgError] = useState(false);
   const timerRef = useRef<number | null>(null);
   const tapTimerRef = useRef<number | null>(null);
   const playerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+
+  // Reset image error state when changing items
+  useEffect(() => {
+    setImgError(false);
+  }, [currentIndex]);
 
   // A cada troca de item, se for image, aciona timer automático para próximo
   useEffect(() => {
@@ -95,6 +101,14 @@ const VideoPlayer = ({ sequence }: VideoPlayerProps) => {
       setTapCount(0);
     }
   }, [isFullScreen, tapCount]);
+
+  // Handler for image loading errors
+  const handleImageError = useCallback(() => {
+    setImgError(true);
+    console.error("Image failed to load:", sequence[currentIndex]?.url);
+    // If image fails to load, wait 2 seconds then advance to next item
+    setTimeout(() => handleNext(), 2000);
+  }, [currentIndex, sequence, handleNext]);
 
   // Limpeza dos timers
   useEffect(() => {
@@ -168,17 +182,26 @@ const VideoPlayer = ({ sequence }: VideoPlayerProps) => {
             background: '#111'
           }}
         >
-          {/* Imagem básica, sem lazy-load para máxima compatibilidade */}
-          <img
-            src={currentItem.url}
-            alt={currentItem.title}
-            style={{
-              maxHeight: isFullScreen ? '80vh' : '400px',
-              maxWidth: '100%',
-              objectFit: 'contain',
-              borderRadius: '8px'
-            }}
-          />
+          {imgError ? (
+            <div className="text-white bg-black/50 p-4 rounded">
+              Não foi possível carregar esta imagem.
+              <br />
+              Avançando automaticamente...
+            </div>
+          ) : (
+            /* Imagem com error handling */
+            <img
+              src={currentItem.url}
+              alt={currentItem.title}
+              onError={handleImageError}
+              style={{
+                maxHeight: isFullScreen ? '80vh' : '400px',
+                maxWidth: '100%',
+                objectFit: 'contain',
+                borderRadius: '8px'
+              }}
+            />
+          )}
         </div>
       )}
       {showControls && (
@@ -231,4 +254,3 @@ const VideoPlayer = ({ sequence }: VideoPlayerProps) => {
 };
 
 export default VideoPlayer;
-

@@ -23,17 +23,39 @@ const VideoForm: React.FC<VideoFormProps> = ({ onVideoAdded }) => {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // Simple image url validation (accepts .jpg, .jpeg, .png, .gif, .webp)
+  // Improved image url validation (now accepts postimg.cc URLs)
   const validateImageUrl = (value: string) => {
     if (!value) return false;
+    
     try {
+      // Check direct image file extensions
       const url = new URL(value);
-      return /\.(jpe?g|png|gif|webp)$/i.test(url.pathname);
+      if (/\.(jpe?g|png|gif|webp)$/i.test(url.pathname)) {
+        return true;
+      }
+      
+      // Add specific handling for postimg.cc
+      if (url.hostname.includes('postimg.cc') || 
+          url.hostname.includes('i.postimg.cc')) {
+        return true;
+      }
+      
+      return false;
     } catch {
       // Try with https://
       try {
         const url = new URL('https://' + value);
-        return /\.(jpe?g|png|gif|webp)$/i.test(url.pathname);
+        if (/\.(jpe?g|png|gif|webp)$/i.test(url.pathname)) {
+          return true;
+        }
+        
+        // Add specific handling for postimg.cc
+        if (url.hostname.includes('postimg.cc') || 
+            url.hostname.includes('i.postimg.cc')) {
+          return true;
+        }
+        
+        return false;
       } catch {
         return false;
       }
@@ -194,7 +216,7 @@ const VideoForm: React.FC<VideoFormProps> = ({ onVideoAdded }) => {
             <p className="text-xs text-muted-foreground">
               {mediaType === 'video'
                 ? "Aceita links do YouTube e outros domínios de vídeo"
-                : "Aceito formatos: .jpg, .jpeg, .png, .gif, .webp"}
+                : "Aceito imagens do postimg.cc e links diretos de imagens (.jpg, .png, etc)"}
             </p>
           </div>
         </CardContent>
@@ -213,4 +235,3 @@ const VideoForm: React.FC<VideoFormProps> = ({ onVideoAdded }) => {
 };
 
 export default VideoForm;
-
