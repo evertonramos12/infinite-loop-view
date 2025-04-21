@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, addDoc } from 'firebase/firestore';
@@ -7,12 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
+import { validateImageUrl, validateVideoUrl, normalizeUrl, MediaType } from '@/utils/mediaValidation';
 
 interface VideoFormProps {
   onVideoAdded: () => void;
 }
-
-type MediaType = 'video' | 'image';
 
 const VideoForm: React.FC<VideoFormProps> = ({ onVideoAdded }) => {
   const [title, setTitle] = useState('');
@@ -21,68 +21,6 @@ const VideoForm: React.FC<VideoFormProps> = ({ onVideoAdded }) => {
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
-
-  const validateImageUrl = (value: string) => {
-    if (!value) return false;
-    try {
-      const url = new URL(value);
-      if (
-        /\.(jpe?g|png|gif|webp)$/i.test(url.pathname) ||
-        url.hostname.includes('postimg.cc') ||
-        url.hostname.includes('i.postimg.cc') ||
-        url.hostname.includes('canva.com')
-      ) {
-        return true;
-      }
-      return false;
-    } catch {
-      try {
-        const url = new URL('https://' + value);
-        if (
-          /\.(jpe?g|png|gif|webp)$/i.test(url.pathname) ||
-          url.hostname.includes('postimg.cc') ||
-          url.hostname.includes('i.postimg.cc') ||
-          url.hostname.includes('canva.com')
-        ) {
-          return true;
-        }
-        return false;
-      } catch {
-        return false;
-      }
-    }
-  };
-
-  const validateVideoUrl = (value: string) => {
-    if (!value) return false;
-    try {
-      const url = new URL(value);
-      if (url.hostname.includes('canva.com')) return true;
-      return true;
-    } catch {
-      try {
-        const url = new URL('https://' + value);
-        if (url.hostname.includes('canva.com')) return true;
-        return true;
-      } catch {
-        return false;
-      }
-    }
-  };
-
-  const normalizeUrl = (value: string) => {
-    try {
-      new URL(value);
-      return value;
-    } catch {
-      try {
-        new URL('https://' + value);
-        return 'https://' + value;
-      } catch {
-        return value;
-      }
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,7 +37,7 @@ const VideoForm: React.FC<VideoFormProps> = ({ onVideoAdded }) => {
     if (mediaType === 'video' && !validateVideoUrl(url)) {
       toast({
         title: "URL de vídeo inválida",
-        description: "Coloque uma URL válida de vídeo",
+        description: "Coloque uma URL válida de vídeo (Canva, YouTube etc)",
         variant: "destructive",
       });
       return;
@@ -108,7 +46,7 @@ const VideoForm: React.FC<VideoFormProps> = ({ onVideoAdded }) => {
     if (mediaType === 'image' && !validateImageUrl(url)) {
       toast({
         title: "URL de imagem inválida",
-        description: "Aceito formatos: .jpg, .jpeg, .png, .gif, .webp",
+        description: "Aceito formatos: .jpg, .jpeg, .png, .gif, .webp, Canva, postimg.cc",
         variant: "destructive",
       });
       return;
