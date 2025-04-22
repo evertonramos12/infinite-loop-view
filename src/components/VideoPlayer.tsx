@@ -154,7 +154,7 @@ const VideoPlayer = ({ sequence }: VideoPlayerProps) => {
           url={currentItem.url}
           playing={isPlaying}
           controls={false}
-          loop={false}
+          loop={true}
           width="100%"
           height={isFullScreen ? "100vh" : "450px"}
           onEnded={handleNext}
@@ -167,6 +167,12 @@ const VideoPlayer = ({ sequence }: VideoPlayerProps) => {
                 rel: 0,
                 modestbranding: 1,
                 autoplay: 1,
+                loop: 1
+              }
+            },
+            file: {
+              attributes: {
+                loop: true
               }
             }
           }}
