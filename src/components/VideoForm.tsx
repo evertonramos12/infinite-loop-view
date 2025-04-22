@@ -8,9 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
-import { validateImageUrl, validateVideoUrl, normalizeUrl, MediaType } from '@/utils/mediaValidation';
-import MediaTypeSelector from './MediaTypeSelector';
-import MediaUrlInput from './MediaUrlInput';
 
 interface VideoFormProps {
   onVideoAdded: () => void;
@@ -19,14 +16,46 @@ interface VideoFormProps {
 const VideoForm: React.FC<VideoFormProps> = ({ onVideoAdded }) => {
   const [title, setTitle] = useState('');
   const [url, setUrl] = useState('');
-  const [mediaType, setMediaType] = useState<MediaType>('video');
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
 
+  const validateUrl = (url: string) => {
+    if (!url) return false;
+    
+    try {
+      new URL(url); // This will throw an error for invalid URLs
+      return true;
+    } catch (e) {
+      // Try adding https:// and check again
+      try {
+        new URL(`https://${url}`);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+  };
+
+  // Function to normalize URL (add protocol if missing)
+  const normalizeUrl = (url: string) => {
+    try {
+      new URL(url);
+      return url; // URL is already valid
+    } catch (e) {
+      // Try adding https://
+      try {
+        new URL(`https://${url}`);
+        return `https://${url}`;
+      } catch (e) {
+        return url; // Return original if still invalid
+      }
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
+    
     if (!title || !url) {
       toast({
         title: "Erro",
@@ -36,19 +65,10 @@ const VideoForm: React.FC<VideoFormProps> = ({ onVideoAdded }) => {
       return;
     }
 
-    if (mediaType === 'video' && !validateVideoUrl(url)) {
+    if (!validateUrl(url)) {
       toast({
-        title: "URL de vídeo inválida",
-        description: "Coloque uma URL válida de vídeo (Canva, YouTube etc)",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (mediaType === 'image' && !validateImageUrl(url)) {
-      toast({
-        title: "URL de imagem inválida",
-        description: "Aceito formatos: .jpg, .jpeg, .png, .gif, .webp, Canva, postimg.cc",
+        title: "URL inválida",
+        description: "Por favor insira uma URL válida",
         variant: "destructive",
       });
       return;
@@ -57,7 +77,7 @@ const VideoForm: React.FC<VideoFormProps> = ({ onVideoAdded }) => {
     if (!user) {
       toast({
         title: "Erro de autenticação",
-        description: "Você precisa estar logado para adicionar mídia",
+        description: "Você precisa estar logado para adicionar vídeos",
         variant: "destructive",
       });
       return;
@@ -66,30 +86,33 @@ const VideoForm: React.FC<VideoFormProps> = ({ onVideoAdded }) => {
     setLoading(true);
     try {
       const normalizedUrl = normalizeUrl(url);
-
+      
+      // Add document to the 'videos' collection in Firestore
       await addDoc(collection(db, "videos"), {
         title,
         url: normalizedUrl,
         userId: user.uid,
         createdAt: new Date(),
         active: true,
-        category: "default",
-        type: mediaType
+        category: "default"
       });
-
+      
       toast({
-        title: mediaType === "image" ? "Imagem adicionada" : "Vídeo adicionado",
-        description: `Sua ${mediaType === "image" ? "imagem" : "vídeo"} foi adicionada!`
+        title: "Vídeo adicionado",
+        description: "Seu vídeo foi adicionado com sucesso!",
       });
-
+      
+      // Reset form fields
       setTitle('');
       setUrl('');
-      setMediaType('video');
+      
+      // Notify parent component to refresh video list
       onVideoAdded();
     } catch (error) {
+      console.error("Error adding video: ", error);
       toast({
         title: "Erro",
-        description: "Ocorreu um erro ao adicionar a mídia",
+        description: "Ocorreu um erro ao adicionar o vídeo",
         variant: "destructive",
       });
     } finally {
@@ -100,30 +123,41 @@ const VideoForm: React.FC<VideoFormProps> = ({ onVideoAdded }) => {
   return (
     <Card className="w-full shadow-sm">
       <CardHeader>
-        <CardTitle>Adicionar Nova Mídia</CardTitle>
+        <CardTitle>Adicionar Novo Vídeo</CardTitle>
       </CardHeader>
       <form onSubmit={handleSubmit}>
         <CardContent className="space-y-4">
-          <MediaTypeSelector mediaType={mediaType} setMediaType={setMediaType} />
           <div className="space-y-2">
-            <Label htmlFor="title">Título</Label>
-            <Input
-              id="title"
+            <Label htmlFor="title">Título do Vídeo</Label>
+            <Input 
+              id="title" 
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder={`Título da ${mediaType === 'video' ? 'vídeo' : 'imagem'}`}
+              placeholder="Digite o título do vídeo" 
               required
             />
           </div>
-          <MediaUrlInput mediaType={mediaType} url={url} setUrl={setUrl} />
+          <div className="space-y-2">
+            <Label htmlFor="url">URL do Vídeo</Label>
+            <Input 
+              id="url" 
+              value={url}
+              onChange={(e) => setUrl(e.target.value)} 
+              placeholder="Link do YouTube ou outra fonte de vídeo"
+              required
+            />
+            <p className="text-xs text-muted-foreground">
+              Aceita links do YouTube e outros domínios de vídeo
+            </p>
+          </div>
         </CardContent>
         <CardFooter>
-          <Button
-            type="submit"
+          <Button 
+            type="submit" 
             className="w-full bg-red-600 hover:bg-red-700"
             disabled={loading}
           >
-            {loading ? "Adicionando..." : `Adicionar ${mediaType === "image" ? "Imagem" : "Vídeo"}`}
+            {loading ? "Adicionando..." : "Adicionar Vídeo"}
           </Button>
         </CardFooter>
       </form>
