@@ -77,39 +77,39 @@ const PlayMode = () => {
         }
       }
 
-      // Online: busca vídeos do firestore sem imagens fixas
+      // Online: busca vídeos E imagens do firestore
       try {
         const videoQuery = query(
           collection(db, "videos"),
           where("userId", "==", user.uid)
         );
         const querySnapshot = await getDocs(videoQuery);
-        const videoList: SequenceItem[] = [];
+        const mediaList: SequenceItem[] = [];
         querySnapshot.forEach((doc) => {
           const data = doc.data();
-          videoList.push({
+          mediaList.push({
             id: doc.id,
             title: data.title,
             url: data.url,
-            type: 'video'
+            // Pega o tipo 'video' ou 'image' do banco, fallback para 'video' se não existir (retrocompatibilidade)
+            type: data.type === "image" ? "image" : "video"
           });
         });
 
-        if (videoList.length === 0) {
+        if (mediaList.length === 0) {
           toast({
-            title: "Sem vídeos",
-            description: "Adicione vídeos antes de entrar no modo de exibição",
+            title: "Sem mídias",
+            description: "Adicione vídeos ou imagens antes de entrar no modo de exibição",
           });
           navigate('/dashboard');
           return;
         }
 
-        // Apenas vídeos - sem imagens estáticas fixas
-        setSequence(videoList);
+        setSequence(mediaList);
       } catch (error) {
         toast({
           title: "Erro",
-          description: "Não foi possível carregar seus vídeos",
+          description: "Não foi possível carregar seus vídeos/imagens",
           variant: "destructive",
         });
         setSequence([]);
