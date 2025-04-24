@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import VideoPlayer from '@/components/VideoPlayer';
 import { ProtectedRoute, useAuth } from '@/hooks/useAuth';
@@ -38,13 +38,13 @@ const PlayMode = () => {
     };
   }, []);
 
-  useEffect(() => {
+  // Function to fetch videos
+  const fetchVideos = () => {
     if (!user) return;
     
     try {
       setLoading(true);
       
-      // Use onSnapshot instead of getDocs for real-time updates
       const videoQuery = query(
         collection(db, "videos"),
         where("userId", "==", user.uid)
@@ -84,7 +84,7 @@ const PlayMode = () => {
         setLoading(false);
       });
 
-      return () => unsubscribe();
+      return unsubscribe;
     } catch (error) {
       console.error("Error fetching videos: ", error);
       toast({
@@ -112,6 +112,25 @@ const PlayMode = () => {
         }
       }
     }
+  };
+
+  // Initial fetch and set up refresh interval
+  useEffect(() => {
+    const unsubscribe = fetchVideos();
+    
+    // Set up 30-minute refresh interval
+    const refreshInterval = setInterval(() => {
+      fetchVideos();
+      toast({
+        title: "Atualizando lista",
+        description: "Buscando novos vídeos...",
+      });
+    }, 30 * 60 * 1000); // 30 minutes in milliseconds
+    
+    return () => {
+      if (unsubscribe) unsubscribe();
+      clearInterval(refreshInterval);
+    };
   }, [user, navigate, toast]);
 
   return (
