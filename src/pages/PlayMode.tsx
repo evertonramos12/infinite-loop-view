@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import VideoPlayer from '@/components/VideoPlayer';
 import { ProtectedRoute, useAuth } from '@/hooks/useAuth';
@@ -20,6 +19,7 @@ const PlayMode = () => {
   const [videos, setVideos] = useState<Video[]>([]);
   const [loading, setLoading] = useState(true);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -39,51 +39,21 @@ const PlayMode = () => {
   }, []);
 
   useEffect(() => {
-    const fetchVideos = async () => {
-      if (!user) return;
+    if (!user) return;
+    
+    try {
+      setLoading(true);
       
-      try {
-        setLoading(true);
-
-        // If offline, try to load from localStorage
-        if (isOffline) {
-          const offlineVideosStr = localStorage.getItem('offlineVideos');
-          
-          if (offlineVideosStr) {
-            const offlineVideos = JSON.parse(offlineVideosStr);
-            const videoList: Video[] = Object.keys(offlineVideos).map(id => ({
-              id,
-              url: offlineVideos[id],
-              title: `Vídeo offline ${id}`
-            }));
-            
-            if (videoList.length > 0) {
-              setVideos(videoList);
-              setLoading(false);
-              return;
-            }
-          }
-          
-          // No offline videos found
-          toast({
-            title: "Sem conexão",
-            description: "Você está offline e não há vídeos disponíveis para visualização offline",
-            variant: "destructive",
-          });
-          setLoading(false);
-          return;
-        }
-        
-        // Online mode - fetch from Firestore
-        const videoQuery = query(
-          collection(db, "videos"),
-          where("userId", "==", user.uid)
-        );
-        
-        const querySnapshot = await getDocs(videoQuery);
+      // Use onSnapshot instead of getDocs for real-time updates
+      const videoQuery = query(
+        collection(db, "videos"),
+        where("userId", "==", user.uid)
+      );
+      
+      const unsubscribe = onSnapshot(videoQuery, (snapshot) => {
         const videoList: Video[] = [];
         
-        querySnapshot.forEach((doc) => {
+        snapshot.forEach((doc) => {
           const data = doc.data();
           videoList.push({
             id: doc.id,
@@ -102,39 +72,47 @@ const PlayMode = () => {
         }
         
         setVideos(videoList);
-      } catch (error) {
+        setLoading(false);
+      }, (error) => {
         console.error("Error fetching videos: ", error);
+        setError("Não foi possível carregar seus vídeos. Tente novamente mais tarde.");
         toast({
           title: "Erro",
           description: "Não foi possível carregar seus vídeos",
           variant: "destructive",
         });
-        
-        // Try to load offline videos as fallback
-        const offlineVideosStr = localStorage.getItem('offlineVideos');
-        if (offlineVideosStr) {
-          const offlineVideos = JSON.parse(offlineVideosStr);
-          const videoList: Video[] = Object.keys(offlineVideos).map(id => ({
-            id,
-            url: offlineVideos[id],
-            title: `Vídeo offline ${id}`
-          }));
-          
-          if (videoList.length > 0) {
-            setVideos(videoList);
-            toast({
-              title: "Carregando vídeos offline",
-              description: "Exibindo vídeos salvos para visualização offline",
-            });
-          }
-        }
-      } finally {
         setLoading(false);
-      }
-    };
+      });
 
-    fetchVideos();
-  }, [user, navigate, toast, isOffline]);
+      return () => unsubscribe();
+    } catch (error) {
+      console.error("Error fetching videos: ", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar seus vídeos",
+        variant: "destructive",
+      });
+      
+      // Try to load offline videos as fallback
+      const offlineVideosStr = localStorage.getItem('offlineVideos');
+      if (offlineVideosStr) {
+        const offlineVideos = JSON.parse(offlineVideosStr);
+        const videoList: Video[] = Object.keys(offlineVideos).map(id => ({
+          id,
+          url: offlineVideos[id],
+          title: `Vídeo offline ${id}`
+        }));
+        
+        if (videoList.length > 0) {
+          setVideos(videoList);
+          toast({
+            title: "Carregando vídeos offline",
+            description: "Exibindo vídeos salvos para visualização offline",
+          });
+        }
+      }
+    }
+  }, [user, navigate, toast]);
 
   return (
     <ProtectedRoute>

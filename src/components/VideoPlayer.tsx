@@ -1,5 +1,4 @@
-
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import ReactPlayer from 'react-player';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
@@ -22,11 +21,16 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
   const tapTimerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
+  useEffect(() => {
+    if (videos.length > 0) {
+      setCurrentVideoIndex(0);
+      setIsPlaying(true);
+    }
+  }, [videos]);
+
   const handleVideoEnded = useCallback(() => {
-    // Move to next video when current one ends
     const nextIndex = (currentVideoIndex + 1) % videos.length;
     setCurrentVideoIndex(nextIndex);
-    // Ensure autoplay continues
     setIsPlaying(true);
   }, [currentVideoIndex, videos.length]);
 
@@ -78,7 +82,6 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
     }
   }, [tapCount, isFullScreen]);
 
-  // Clean up timer when component unmounts
   React.useEffect(() => {
     return () => {
       if (tapTimerRef.current) {
@@ -87,7 +90,6 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
     };
   }, []);
 
-  // Handle fullscreen change event from browser
   React.useEffect(() => {
     const handleFullScreenChange = () => {
       if (!document.fullscreenElement) {
