@@ -29,10 +29,11 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
   }, [videos]);
 
   const handleVideoEnded = useCallback(() => {
-    const nextIndex = (currentVideoIndex + 1) % videos.length;
-    setCurrentVideoIndex(nextIndex);
+    if (videos.length > 1) {
+      setCurrentVideoIndex((prev) => (prev + 1) % videos.length);
+    }
     setIsPlaying(true);
-  }, [currentVideoIndex, videos.length]);
+  }, [videos.length]);
 
   const toggleFullScreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -125,7 +126,7 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
         url={currentVideo.url}
         playing={isPlaying}
         controls={false}
-        loop={false}
+        loop={videos.length === 1}
         width="100%"
         height={isFullScreen ? "100vh" : "450px"}
         onEnded={handleVideoEnded}
@@ -138,14 +139,15 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
               rel: 0,
               modestbranding: 1,
               autoplay: 1,
-              loop: 1,
-              playlist: currentVideo.url
+              playlist: currentVideo.url,
+              loop: 1
             }
           },
           file: {
             attributes: {
               autoPlay: true,
-              playsInline: true
+              playsInline: true,
+              loop: videos.length === 1
             }
           }
         }}
