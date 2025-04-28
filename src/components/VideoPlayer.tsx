@@ -175,10 +175,13 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
               modestbranding: 1,
               autoplay: 1,
               playlist: currentVideo?.url,
-              loop: 1,
+              loop: videos.length === 1 ? 1 : 0,
               origin: window.location.origin,
               widget_referrer: window.location.origin,
-              enablejsapi: 1
+              enablejsapi: 1,
+              iv_load_policy: 3, // Disable annotations
+              nocookie: false, // Use standard youtube.com domain
+              showinfo: 0, // Hide title/info
             }
           },
           file: {
