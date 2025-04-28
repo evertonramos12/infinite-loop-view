@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import ReactPlayer from 'react-player';
 import { Button } from '@/components/ui/button';
@@ -17,7 +18,9 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
   const [tapCount, setTapCount] = useState(0);
   const [showControls, setShowControls] = useState(true);
   const [isPlaying, setIsPlaying] = useState(true);
+  const [videoError, setVideoError] = useState<string | null>(null);
   const playerRef = useRef<HTMLDivElement>(null);
+  const reactPlayerRef = useRef<ReactPlayer | null>(null);
   const tapTimerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
@@ -25,6 +28,7 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
     if (videos.length > 0) {
       setCurrentVideoIndex(0);
       setIsPlaying(true);
+      setVideoError(null);
     }
   }, [videos]);
 
@@ -33,7 +37,27 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
       setCurrentVideoIndex((prev) => (prev + 1) % videos.length);
     }
     setIsPlaying(true);
+    setVideoError(null);
   }, [videos.length]);
+
+  const handleVideoError = useCallback((error: any, data?: any, hlsInstance?: any, hlsGlobal?: any) => {
+    console.error("Video error:", error, data);
+    setVideoError(`Erro ao reproduzir vídeo: ${currentVideo?.title || 'Desconhecido'}`);
+    
+    toast({
+      title: "Erro no vídeo",
+      description: `Não foi possível reproduzir o vídeo: ${currentVideo?.title || 'Desconhecido'}`,
+      variant: "destructive",
+    });
+    
+    // Automatically try the next video after a short delay
+    setTimeout(() => {
+      if (videos.length > 1) {
+        setCurrentVideoIndex((prev) => (prev + 1) % videos.length);
+        setVideoError(null);
+      }
+    }, 3000);
+  }, [currentVideo?.title, videos.length, toast]);
 
   const toggleFullScreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -115,6 +139,7 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
   }
 
   const currentVideo = videos[currentVideoIndex];
+  const isYoutubeVideo = currentVideo.url.includes('youtu');
 
   return (
     <div 
@@ -122,7 +147,14 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
       onClick={handleTap}
       className={`relative rounded-lg overflow-hidden ${isFullScreen ? 'fullscreen' : ''}`}
     >
+      {videoError && (
+        <div className="absolute top-0 left-0 right-0 bg-red-600 text-white text-center p-2 z-20">
+          {videoError}
+        </div>
+      )}
+      
       <ReactPlayer
+        ref={reactPlayerRef}
         url={currentVideo.url}
         playing={isPlaying}
         controls={false}
@@ -130,6 +162,7 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
         width="100%"
         height={isFullScreen ? "100vh" : "450px"}
         onEnded={handleVideoEnded}
+        onError={handleVideoError}
         style={{ backgroundColor: 'black' }}
         config={{
           youtube: {
@@ -140,22 +173,33 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
               modestbranding: 1,
               autoplay: 1,
               playlist: currentVideo.url,
-              loop: 1
+              loop: 1,
+              origin: window.location.origin,
+              widget_referrer: window.location.origin,
+              enablejsapi: 1
             }
           },
           file: {
             attributes: {
               autoPlay: true,
               playsInline: true,
-              loop: videos.length === 1
-            }
+              loop: videos.length === 1,
+              crossOrigin: "anonymous",
+              controlsList: "nodownload"
+            },
+            forceHLS: true,
+            forceVideo: true
           }
         }}
       />
       {showControls && (
         <div className="absolute bottom-4 right-4 flex gap-2">
           <Button 
-            onClick={() => setCurrentVideoIndex((currentVideoIndex - 1 + videos.length) % videos.length)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setCurrentVideoIndex((currentVideoIndex - 1 + videos.length) % videos.length);
+              setVideoError(null);
+            }}
             className="bg-black/70 hover:bg-black/90"
             variant="outline"
             size="sm"
@@ -163,7 +207,10 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
             Anterior
           </Button>
           <Button 
-            onClick={() => setIsPlaying(!isPlaying)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsPlaying(!isPlaying);
+            }}
             className="bg-black/70 hover:bg-black/90"
             variant="outline"
             size="sm"
@@ -171,14 +218,21 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
             {isPlaying ? 'Pause' : 'Play'}
           </Button>
           <Button 
-            onClick={toggleFullScreen}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleFullScreen();
+            }}
             className="bg-red-600 hover:bg-red-700"
             size="sm"
           >
             Tela cheia
           </Button>
           <Button 
-            onClick={() => setCurrentVideoIndex((currentVideoIndex + 1) % videos.length)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setCurrentVideoIndex((currentVideoIndex + 1) % videos.length);
+              setVideoError(null);
+            }}
             className="bg-black/70 hover:bg-black/90"
             variant="outline"
             size="sm"
