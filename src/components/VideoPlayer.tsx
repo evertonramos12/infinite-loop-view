@@ -24,6 +24,9 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
   const tapTimerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
+  // Define currentVideo here, before it's used in any function
+  const currentVideo = videos && videos.length > 0 ? videos[currentVideoIndex] : null;
+
   useEffect(() => {
     if (videos.length > 0) {
       setCurrentVideoIndex(0);
@@ -138,8 +141,7 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
     );
   }
 
-  const currentVideo = videos[currentVideoIndex];
-  const isYoutubeVideo = currentVideo.url.includes('youtu');
+  const isYoutubeVideo = currentVideo?.url.includes('youtu');
 
   return (
     <div 
@@ -155,7 +157,7 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
       
       <ReactPlayer
         ref={reactPlayerRef}
-        url={currentVideo.url}
+        url={currentVideo?.url}
         playing={isPlaying}
         controls={false}
         loop={videos.length === 1}
@@ -172,7 +174,7 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
               rel: 0,
               modestbranding: 1,
               autoplay: 1,
-              playlist: currentVideo.url,
+              playlist: currentVideo?.url,
               loop: 1,
               origin: window.location.origin,
               widget_referrer: window.location.origin,
