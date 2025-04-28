@@ -13,27 +13,71 @@ interface VideoPlayerProps {
 }
 
 const VideoPlayer = ({ videos }: VideoPlayerProps) => {
+  // Define currentVideo here, before it's used in any function
+  const currentVideo = videos && videos.length > 0 ? videos[currentVideoIndex] : null;
+  
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [tapCount, setTapCount] = useState(0);
   const [showControls, setShowControls] = useState(true);
   const [isPlaying, setIsPlaying] = useState(true);
   const [videoError, setVideoError] = useState<string | null>(null);
+  const [attemptCount, setAttemptCount] = useState(0);
   const playerRef = useRef<HTMLDivElement>(null);
   const reactPlayerRef = useRef<ReactPlayer | null>(null);
   const tapTimerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
-
-  // Define currentVideo here, before it's used in any function
-  const currentVideo = videos && videos.length > 0 ? videos[currentVideoIndex] : null;
 
   useEffect(() => {
     if (videos.length > 0) {
       setCurrentVideoIndex(0);
       setIsPlaying(true);
       setVideoError(null);
+      setAttemptCount(0);
     }
   }, [videos]);
+  
+  // Function to format YouTube URL correctly
+  const formatYouTubeUrl = useCallback((url: string) => {
+    if (!url) return url;
+    
+    try {
+      // Check if it's a YouTube URL
+      if (url.includes('youtu')) {
+        // Extract video ID
+        let videoId = '';
+        
+        if (url.includes('youtube.com/watch')) {
+          // Format: https://www.youtube.com/watch?v=VIDEO_ID
+          const urlObj = new URL(url);
+          videoId = urlObj.searchParams.get('v') || '';
+        } else if (url.includes('youtu.be/')) {
+          // Format: https://youtu.be/VIDEO_ID
+          const parts = url.split('youtu.be/');
+          if (parts.length > 1) {
+            videoId = parts[1].split('?')[0];
+          }
+        } else if (url.includes('youtube.com/embed/')) {
+          // Format: https://www.youtube.com/embed/VIDEO_ID
+          const parts = url.split('embed/');
+          if (parts.length > 1) {
+            videoId = parts[1].split('?')[0];
+          }
+        }
+        
+        if (videoId) {
+          // Return standardized embed URL
+          return `https://www.youtube.com/watch?v=${videoId}`;
+        }
+      }
+      
+      // Not a YouTube URL or couldn't extract ID, return as is
+      return url;
+    } catch (e) {
+      console.error("Error formatting YouTube URL:", e);
+      return url;
+    }
+  }, []);
 
   const handleVideoEnded = useCallback(() => {
     if (videos.length > 1) {
@@ -41,26 +85,50 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
     }
     setIsPlaying(true);
     setVideoError(null);
+    setAttemptCount(0);
   }, [videos.length]);
 
   const handleVideoError = useCallback((error: any, data?: any, hlsInstance?: any, hlsGlobal?: any) => {
     console.error("Video error:", error, data);
-    setVideoError(`Erro ao reproduzir vídeo: ${currentVideo?.title || 'Desconhecido'}`);
     
-    toast({
-      title: "Erro no vídeo",
-      description: `Não foi possível reproduzir o vídeo: ${currentVideo?.title || 'Desconhecido'}`,
-      variant: "destructive",
-    });
+    // Increment attempt counter
+    const newAttemptCount = attemptCount + 1;
+    setAttemptCount(newAttemptCount);
     
-    // Automatically try the next video after a short delay
-    setTimeout(() => {
-      if (videos.length > 1) {
-        setCurrentVideoIndex((prev) => (prev + 1) % videos.length);
-        setVideoError(null);
+    if (newAttemptCount <= 3 && currentVideo) {
+      // Try to reload the same video a few times
+      console.log(`Attempt ${newAttemptCount} to reload video...`);
+      setTimeout(() => {
+        setIsPlaying(false);
+        setTimeout(() => {
+          setIsPlaying(true);
+        }, 1000);
+      }, 1000);
+      
+      // Only show error after first attempt
+      if (newAttemptCount > 1) {
+        setVideoError(`Erro ao reproduzir vídeo: ${currentVideo.title || 'Desconhecido'} (tentativa ${newAttemptCount})`);
       }
-    }, 3000);
-  }, [currentVideo?.title, videos.length, toast]);
+    } else {
+      // After multiple attempts, move to next video
+      setVideoError(`Erro ao reproduzir vídeo: ${currentVideo?.title || 'Desconhecido'}`);
+      
+      toast({
+        title: "Erro no vídeo",
+        description: `Não foi possível reproduzir o vídeo: ${currentVideo?.title || 'Desconhecido'}`,
+        variant: "destructive",
+      });
+      
+      // Move to next video after a short delay
+      if (videos.length > 1) {
+        setTimeout(() => {
+          setCurrentVideoIndex((prev) => (prev + 1) % videos.length);
+          setVideoError(null);
+          setAttemptCount(0);
+        }, 3000);
+      }
+    }
+  }, [currentVideo, attemptCount, videos.length, toast]);
 
   const toggleFullScreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -142,6 +210,7 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
   }
 
   const isYoutubeVideo = currentVideo?.url.includes('youtu');
+  const formattedUrl = isYoutubeVideo ? formatYouTubeUrl(currentVideo?.url || '') : currentVideo?.url;
 
   return (
     <div 
@@ -157,7 +226,7 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
       
       <ReactPlayer
         ref={reactPlayerRef}
-        url={currentVideo?.url}
+        url={formattedUrl}
         playing={isPlaying}
         controls={false}
         loop={videos.length === 1}
@@ -180,8 +249,10 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
               widget_referrer: window.location.origin,
               enablejsapi: 1,
               iv_load_policy: 3, // Disable annotations
-              nocookie: false, // Use standard youtube.com domain
+              host: 'https://www.youtube.com', // Force standard domain
               showinfo: 0, // Hide title/info
+              playsinline: 1, // Better mobile support
+              controls: 0 // Hide YouTube controls
             }
           },
           file: {
@@ -196,6 +267,11 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
             forceVideo: true
           }
         }}
+        onReady={() => {
+          // Reset attempt count when video loads successfully
+          setAttemptCount(0);
+          setVideoError(null);
+        }}
       />
       {showControls && (
         <div className="absolute bottom-4 right-4 flex gap-2">
@@ -204,6 +280,7 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
               e.stopPropagation();
               setCurrentVideoIndex((currentVideoIndex - 1 + videos.length) % videos.length);
               setVideoError(null);
+              setAttemptCount(0);
             }}
             className="bg-black/70 hover:bg-black/90"
             variant="outline"
@@ -237,6 +314,7 @@ const VideoPlayer = ({ videos }: VideoPlayerProps) => {
               e.stopPropagation();
               setCurrentVideoIndex((currentVideoIndex + 1) % videos.length);
               setVideoError(null);
+              setAttemptCount(0);
             }}
             className="bg-black/70 hover:bg-black/90"
             variant="outline"
